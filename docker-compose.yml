@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  redis-flash:
+    image: redis:7-alpine
+    container_name: flash-redis
+    ports:
+      - "6379:6379"
+
+  mysql-flash:
+    image: mysql:8.0
+    container_name: flash-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=flash_sale
