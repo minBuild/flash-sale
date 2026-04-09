@@ -1,6 +1,8 @@
 package dev.minbuild.flashsale.application
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import dev.minbuild.flashsale.common.exception.FlashSaleRejectedException
+import dev.minbuild.flashsale.common.exception.OrderCreationFailedException
 import dev.minbuild.flashsale.domain.order.Order
 import dev.minbuild.flashsale.domain.order.OrderRepository
 import dev.minbuild.flashsale.domain.outbox.OrderCreatedEventPayload
@@ -24,12 +26,12 @@ class OrderFlashSaleService(
         val isWinner = flashSaleRedisRepository.attemptToParticipate(userId, productId)
 
         if (!isWinner) {
-            throw IllegalStateException("선착순이 마감되었거나 이미 참여한 유저입니다.")
+            throw FlashSaleRejectedException()
         }
 
         val order = Order(userId = userId, productId = productId)
         val savedOrder = orderRepository.save(order)
-        val orderId = savedOrder.id ?: throw IllegalStateException("주문 생성 실패: ID가 없습니다.")
+        val orderId = savedOrder.id ?: throw OrderCreationFailedException()
 
         val eventPayload = OrderCreatedEventPayload(
             orderId = orderId,

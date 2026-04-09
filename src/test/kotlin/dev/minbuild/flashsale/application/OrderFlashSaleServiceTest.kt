@@ -1,6 +1,9 @@
 package dev.minbuild.flashsale.application
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import dev.minbuild.flashsale.common.exception.ErrorCode
+import dev.minbuild.flashsale.common.exception.FlashSaleRejectedException
+import dev.minbuild.flashsale.common.exception.OrderCreationFailedException
 import dev.minbuild.flashsale.domain.order.Order
 import dev.minbuild.flashsale.domain.order.OrderRepository
 import dev.minbuild.flashsale.domain.outbox.OutboxEvent
@@ -66,10 +69,10 @@ internal class OrderFlashSaleServiceTest {
         coEvery { flashSaleRedisRepository.attemptToParticipate(userId, productId) } returns false
 
         // when & then
-        val exception = assertThrows<IllegalStateException> {
+        val exception = assertThrows<FlashSaleRejectedException> {
             orderFlashSaleService.placeOrder(userId, productId)
         }
-        assertEquals("선착순이 마감되었거나 이미 참여한 유저입니다.", exception.message)
+        assertEquals(ErrorCode.PARTICIPATION_REJECTED, exception.errorCode)
 
         coVerify(exactly = 0) { orderRepository.save(any()) }
         coVerify(exactly = 0) { outboxEventRepository.save(any()) }
@@ -90,10 +93,10 @@ internal class OrderFlashSaleServiceTest {
         )
 
         // when & then
-        val exception = assertThrows<IllegalStateException> {
+        val exception = assertThrows<OrderCreationFailedException> {
             orderFlashSaleService.placeOrder(userId, productId)
         }
-        assertEquals("주문 생성 실패: ID가 없습니다.", exception.message)
+        assertEquals(ErrorCode.ORDER_CREATION_FAILED, exception.errorCode)
 
         coVerify(exactly = 0) { outboxEventRepository.save(any()) }
     }
