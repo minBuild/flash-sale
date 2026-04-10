@@ -1,8 +1,10 @@
 package dev.minbuild.flashsale.application
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import dev.minbuild.flashsale.common.exception.FlashSaleRejectedException
+import dev.minbuild.flashsale.common.exception.FlashSaleDuplicatedException
+import dev.minbuild.flashsale.common.exception.FlashSaleSoldOutException
 import dev.minbuild.flashsale.common.exception.OrderCreationFailedException
+import dev.minbuild.flashsale.domain.order.FlashSaleResult
 import dev.minbuild.flashsale.domain.order.Order
 import dev.minbuild.flashsale.domain.order.OrderRepository
 import dev.minbuild.flashsale.domain.outbox.OrderCreatedEventPayload
@@ -23,10 +25,12 @@ class OrderFlashSaleService(
     @Transactional
     suspend fun placeOrder(userId: Long, productId: Long): Order {
 
-        val isWinner = flashSaleRedisRepository.attemptToParticipate(userId, productId)
+        val result = flashSaleRedisRepository.attemptToParticipate(userId, productId)
 
-        if (!isWinner) {
-            throw FlashSaleRejectedException()
+        when (result) {
+            FlashSaleResult.SOLD_OUT -> throw FlashSaleSoldOutException()
+            FlashSaleResult.DUPLICATED -> throw FlashSaleDuplicatedException()
+            FlashSaleResult.SUCCESS -> {}
         }
 
         val order = Order(userId = userId, productId = productId)

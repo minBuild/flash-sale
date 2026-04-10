@@ -4,6 +4,8 @@ abstract class FlashSaleException(
     val errorCode: ErrorCode
 ) : RuntimeException(errorCode.message)
 
-class FlashSaleRejectedException : FlashSaleException(ErrorCode.PARTICIPATION_REJECTED)
+class FlashSaleSoldOutException : FlashSaleException(ErrorCode.SOLD_OUT)
+
+class FlashSaleDuplicatedException : FlashSaleException(ErrorCode.DUPLICATED_PARTICIPATION)
 
 class OrderCreationFailedException : FlashSaleException(ErrorCode.ORDER_CREATION_FAILED)

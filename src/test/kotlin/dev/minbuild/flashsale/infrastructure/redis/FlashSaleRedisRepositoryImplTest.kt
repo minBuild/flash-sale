@@ -1,10 +1,10 @@
 package dev.minbuild.flashsale.infrastructure.redis
 
+import dev.minbuild.flashsale.domain.order.FlashSaleResult
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
@@ -32,7 +32,7 @@ internal class FlashSaleRedisRepositoryImplTest {
         val result = repository.attemptToParticipate(1L, 100L)
 
         // then
-        assertTrue(result)
+        assertEquals(FlashSaleResult.SUCCESS, result)
     }
 
     @Test
@@ -51,7 +51,7 @@ internal class FlashSaleRedisRepositoryImplTest {
         val result = repository.attemptToParticipate(2L, 100L)
 
         // then
-        assertFalse(result)
+        assertEquals(FlashSaleResult.SOLD_OUT, result)
     }
 
     @Test
@@ -70,7 +70,7 @@ internal class FlashSaleRedisRepositoryImplTest {
         val result = repository.attemptToParticipate(3L, 100L)
 
         // then
-        assertFalse(result)
+        assertEquals(FlashSaleResult.DUPLICATED, result)
     }
 
 }

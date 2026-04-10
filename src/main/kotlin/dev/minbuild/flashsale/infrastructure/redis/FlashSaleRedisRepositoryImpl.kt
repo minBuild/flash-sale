@@ -1,6 +1,6 @@
 package dev.minbuild.flashsale.infrastructure.redis
 
-import dev.minbuild.flashsale.common.utils.log
+import dev.minbuild.flashsale.domain.order.FlashSaleResult
 import kotlinx.coroutines.reactive.awaitFirstOrNull
 import org.springframework.core.io.ClassPathResource
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
@@ -17,7 +17,7 @@ class FlashSaleRedisRepositoryImpl(
         resultType = Long::class.java
     }
 
-    override suspend fun attemptToParticipate(userId: Long, productId: Long): Boolean {
+    override suspend fun attemptToParticipate(userId: Long, productId: Long): FlashSaleResult {
         val stockKey = "flashsale:stock:$productId"
         val usersKey = "flashsale:users:$productId"
 
@@ -28,25 +28,10 @@ class FlashSaleRedisRepositoryImpl(
         ).awaitFirstOrNull()
 
         return when (result) {
-            1L -> {
-                log.info("선착순 성공! (userId: $userId, productId: $productId)")
-                true
-            }
-
-            2L -> {
-                log.warn("선착순 실패: 재고 소진 (userId: $userId, productId: $productId)")
-                false
-            }
-
-            3L -> {
-                log.warn("선착순 실패: 중복 참여 (userId: $userId, productId: $productId)")
-                false
-            }
-
-            else -> {
-                log.error("Redis Lua Script 실행 중 알 수 없는 에러 발생: $result")
-                false
-            }
+            1L -> FlashSaleResult.SUCCESS
+            2L -> FlashSaleResult.SOLD_OUT
+            3L -> FlashSaleResult.DUPLICATED
+            else -> throw IllegalStateException("Redis Lua Script 실행 중 알 수 없는 에러 발생: $result")
         }
     }
 

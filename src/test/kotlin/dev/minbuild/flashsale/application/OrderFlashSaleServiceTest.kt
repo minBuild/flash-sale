@@ -2,8 +2,10 @@ package dev.minbuild.flashsale.application
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import dev.minbuild.flashsale.common.exception.ErrorCode
-import dev.minbuild.flashsale.common.exception.FlashSaleRejectedException
+import dev.minbuild.flashsale.common.exception.FlashSaleDuplicatedException
+import dev.minbuild.flashsale.common.exception.FlashSaleSoldOutException
 import dev.minbuild.flashsale.common.exception.OrderCreationFailedException
+import dev.minbuild.flashsale.domain.order.FlashSaleResult
 import dev.minbuild.flashsale.domain.order.Order
 import dev.minbuild.flashsale.domain.order.OrderRepository
 import dev.minbuild.flashsale.domain.outbox.OutboxEvent
@@ -41,7 +43,12 @@ internal class OrderFlashSaleServiceTest {
         val productId = 100L
         val expectedOrderId = 10L
 
-        coEvery { flashSaleRedisRepository.attemptToParticipate(userId, productId) } returns true
+        coEvery {
+            flashSaleRedisRepository.attemptToParticipate(
+                userId,
+                productId
+            )
+        } returns FlashSaleResult.SUCCESS
         coEvery { orderRepository.save(any<Order>()) } returns Order(
             id = expectedOrderId,
             userId = userId,
@@ -60,19 +67,48 @@ internal class OrderFlashSaleServiceTest {
     }
 
     @Test
-    @DisplayName("레디스 선착순 검증에서 실패하면 예외가 발생하고 DB 저장은 수행되지 않는다.")
-    fun placeOrder_fail_whenRedisRejects() = runTest {
+    @DisplayName("레디스 선착순 검증에서 재고 소진 시 예외가 발생하고 DB 저장은 수행되지 않는다.")
+    fun placeOrder_fail_whenSoldOut() = runTest {
         // given
         val userId = 1L
         val productId = 100L
 
-        coEvery { flashSaleRedisRepository.attemptToParticipate(userId, productId) } returns false
+        coEvery {
+            flashSaleRedisRepository.attemptToParticipate(
+                userId,
+                productId
+            )
+        } returns FlashSaleResult.SOLD_OUT
 
         // when & then
-        val exception = assertThrows<FlashSaleRejectedException> {
+        val exception = assertThrows<FlashSaleSoldOutException> {
             orderFlashSaleService.placeOrder(userId, productId)
         }
-        assertEquals(ErrorCode.PARTICIPATION_REJECTED, exception.errorCode)
+        assertEquals(ErrorCode.SOLD_OUT, exception.errorCode)
+
+        coVerify(exactly = 0) { orderRepository.save(any()) }
+        coVerify(exactly = 0) { outboxEventRepository.save(any()) }
+    }
+
+    @Test
+    @DisplayName("레디스 선착순 검증에서 실패하면 예외가 발생하고 DB 저장은 수행되지 않는다.")
+    fun placeOrder_fail_whenDuplicated() = runTest {
+        // given
+        val userId = 1L
+        val productId = 100L
+
+        coEvery {
+            flashSaleRedisRepository.attemptToParticipate(
+                userId,
+                productId
+            )
+        } returns FlashSaleResult.DUPLICATED
+
+        // when & then
+        val exception = assertThrows<FlashSaleDuplicatedException> {
+            orderFlashSaleService.placeOrder(userId, productId)
+        }
+        assertEquals(ErrorCode.DUPLICATED_PARTICIPATION, exception.errorCode)
 
         coVerify(exactly = 0) { orderRepository.save(any()) }
         coVerify(exactly = 0) { outboxEventRepository.save(any()) }
@@ -85,7 +121,12 @@ internal class OrderFlashSaleServiceTest {
         val userId = 1L
         val productId = 100L
 
-        coEvery { flashSaleRedisRepository.attemptToParticipate(userId, productId) } returns true
+        coEvery {
+            flashSaleRedisRepository.attemptToParticipate(
+                userId,
+                productId
+            )
+        } returns FlashSaleResult.SUCCESS
         coEvery { orderRepository.save(any<Order>()) } returns Order(
             id = null,
             userId = userId,
