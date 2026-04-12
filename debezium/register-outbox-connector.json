@@ -1,0 +1,27 @@
+{
+  "name": "flash-sale-outbox-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+    "database.hostname": "flash-mysql",
+    "database.port": "3306",
+    "database.user": "root",
+    "database.password": "root",
+    "database.server.id": "184054",
+    "topic.prefix": "dbserver1",
+    "database.include.list": "flash_sale",
+    "schema.history.internal.kafka.bootstrap.servers": "flash-kafka:29092",
+    "schema.history.internal.kafka.topic": "schema-changes.flash_sale",
+    "table.include.list": "flash_sale.outbox_event",
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.route.topic.replacement": "order-created-topic",
+    "transforms.outbox.table.field.event.id": "id",
+    "transforms.outbox.table.field.event.key": "aggregate_id",
+    "transforms.outbox.table.field.event.type": "event_type",
+    "transforms.outbox.table.field.event.payload": "payload",
+    "transforms.outbox.route.by.field": "aggregate_type",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter"
+  }
+}
