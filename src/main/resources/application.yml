@@ -23,3 +23,8 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       listener:
         ack-mode: manual_immediate
+
+external:
+  api:
+    order:
+      url: http://localhost:8082/api/v1/orders

@@ -1,6 +1,7 @@
 package dev.minbuild.flashsale.application.consumer
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import dev.minbuild.flashsale.application.client.OrderApiClient
 import dev.minbuild.flashsale.common.utils.log
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.kafka.support.Acknowledgment
@@ -8,7 +9,8 @@ import org.springframework.stereotype.Component
 
 @Component
 class OrderEventConsumer(
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val orderApiClient: OrderApiClient
 ) {
 
     @KafkaListener(
@@ -34,7 +36,7 @@ class OrderEventConsumer(
         }
 
         try {
-            // TODO: call order api
+            orderApiClient.requestOrder(orderId, userId)
 
             acknowledgment.acknowledge()
             log.info(
