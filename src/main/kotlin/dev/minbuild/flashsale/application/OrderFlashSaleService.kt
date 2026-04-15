@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import dev.minbuild.flashsale.common.exception.FlashSaleDuplicatedException
 import dev.minbuild.flashsale.common.exception.FlashSaleSoldOutException
 import dev.minbuild.flashsale.common.exception.OrderCreationFailedException
+import dev.minbuild.flashsale.common.utils.log
 import dev.minbuild.flashsale.domain.order.FlashSaleResult
 import dev.minbuild.flashsale.domain.order.Order
 import dev.minbuild.flashsale.domain.order.OrderRepository
@@ -24,7 +25,7 @@ class OrderFlashSaleService(
 
     @Transactional
     suspend fun placeOrder(userId: Long, productId: Long): Order {
-
+        log.info("Processing flash sale request (UserId: {}, ProductId: {})", userId, productId)
         val result = flashSaleRedisRepository.attemptToParticipate(userId, productId)
 
         when (result) {
@@ -51,6 +52,7 @@ class OrderFlashSaleService(
             payload = payloadJson
         )
         outboxEventRepository.save(outboxEvent)
+        log.info("Flash sale successful! (UserId: {}, ProductId: {})", userId, productId)
 
         return savedOrder
     }
