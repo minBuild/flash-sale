@@ -3,9 +3,12 @@ package dev.minbuild.flashsale.application.consumer
 import com.fasterxml.jackson.databind.ObjectMapper
 import dev.minbuild.flashsale.application.client.OrderApiClient
 import dev.minbuild.flashsale.common.utils.log
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactor.awaitSingleOrNull
+import org.apache.kafka.clients.producer.ProducerRecord
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.kafka.annotation.KafkaListener
+import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.support.Acknowledgment
 import org.springframework.stereotype.Component
 import java.time.Duration
@@ -14,7 +17,8 @@ import java.time.Duration
 class OrderEventConsumer(
     private val objectMapper: ObjectMapper,
     private val orderApiClient: OrderApiClient,
-    private val redisTemplate: ReactiveStringRedisTemplate
+    private val redisTemplate: ReactiveStringRedisTemplate,
+    private val kafkaTemplate: KafkaTemplate<String, String>
 ) {
 
     @KafkaListener(
@@ -35,6 +39,8 @@ class OrderEventConsumer(
                 ?: throw IllegalArgumentException("UserId is missing")
         } catch (e: Exception) {
             log.error("Invalid payload detected. Payload: {}", payload, e)
+            sendToDlq(payload, e.message ?: "Unknown Parsing Error")
+
             acknowledgment.acknowledge()
             return
         }
@@ -67,6 +73,19 @@ class OrderEventConsumer(
 
         } catch (e: Exception) {
             log.error("API call failed. Will wait for Kafka retry. Payload: {}", payload, e)
+        }
+    }
+
+    private suspend fun sendToDlq(originalPayload: String, errorMessage: String) {
+        val dlqTopic = "order-created-dlq"
+        try {
+            val record = ProducerRecord<String, String>(dlqTopic, originalPayload)
+            record.headers().add("X-Error-Reason", errorMessage.toByteArray())
+
+            kafkaTemplate.send(record).await()
+            log.info("Successfully routed Poison Pill to DLQ Topic: {}", dlqTopic)
+        } catch (e: Exception) {
+            log.error("Failed to send message to DLQ. Payload: {}", originalPayload, e)
         }
     }
 

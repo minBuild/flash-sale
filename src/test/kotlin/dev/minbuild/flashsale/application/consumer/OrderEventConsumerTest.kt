@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import dev.minbuild.flashsale.application.client.OrderApiClient
 import io.mockk.*
 import kotlinx.coroutines.runBlocking
+import org.apache.kafka.clients.producer.ProducerRecord
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.data.redis.core.ReactiveValueOperations
+import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.support.Acknowledgment
 import reactor.core.publisher.Mono
 import java.time.Duration
@@ -21,6 +23,7 @@ class OrderEventConsumerTest {
     private lateinit var orderApiClient: OrderApiClient
     private lateinit var redisTemplate: ReactiveStringRedisTemplate
     private lateinit var valueOperations: ReactiveValueOperations<String, String>
+    private lateinit var kafkaTemplate: KafkaTemplate<String, String>
 
     @BeforeEach
     fun setUp() {
@@ -29,13 +32,15 @@ class OrderEventConsumerTest {
         orderApiClient = mockk()
         redisTemplate = mockk()
         valueOperations = mockk()
+        kafkaTemplate = mockk()
 
         every { redisTemplate.opsForValue() } returns valueOperations
 
         orderEventConsumer = OrderEventConsumer(
             objectMapper = objectMapper,
             orderApiClient = orderApiClient,
-            redisTemplate = redisTemplate
+            redisTemplate = redisTemplate,
+            kafkaTemplate = kafkaTemplate
         )
     }
 
@@ -55,6 +60,7 @@ class OrderEventConsumerTest {
         // then
         coVerify(exactly = 1) { orderApiClient.requestOrder(100L, 1L) }
         verify(exactly = 1) { valueOperations.set(any(), "DONE", any<Duration>()) }
+        verify(exactly = 0) { kafkaTemplate.send(any<ProducerRecord<String, String>>()) }
         verify(exactly = 1) { acknowledgment.acknowledge() }
     }
 
@@ -69,6 +75,11 @@ class OrderEventConsumerTest {
 
         // then
         coVerify(exactly = 0) { orderApiClient.requestOrder(any(), any()) }
+        verify(exactly = 1) {
+            kafkaTemplate.send(match<ProducerRecord<String, String>> {
+                it.topic() == "order-created-dlq" && it.value() == invalidPayload
+            })
+        }
         verify(exactly = 1) { acknowledgment.acknowledge() }
     }
 
@@ -83,6 +94,11 @@ class OrderEventConsumerTest {
 
         // then
         coVerify(exactly = 0) { orderApiClient.requestOrder(any(), any()) }
+        verify(exactly = 1) {
+            kafkaTemplate.send(match<ProducerRecord<String, String>> {
+                it.topic() == "order-created-dlq" && it.value() == brokenPayload
+            })
+        }
         verify(exactly = 1) { acknowledgment.acknowledge() }
     }
 
@@ -100,6 +116,7 @@ class OrderEventConsumerTest {
         // then
         coVerify(exactly = 0) { orderApiClient.requestOrder(any(), any()) }
         verify(exactly = 0) { valueOperations.set(any(), any(), any<Duration>()) }
+        verify(exactly = 0) { kafkaTemplate.send(any<ProducerRecord<String, String>>()) }
         verify(exactly = 1) { acknowledgment.acknowledge() }
     }
 
@@ -123,6 +140,7 @@ class OrderEventConsumerTest {
         // then
         verify(exactly = 0) { valueOperations.set(any(), any(), any<Duration>()) }
         verify(exactly = 0) { acknowledgment.acknowledge() }
+        verify(exactly = 0) { kafkaTemplate.send(any<ProducerRecord<String, String>>()) }
     }
 
 }
