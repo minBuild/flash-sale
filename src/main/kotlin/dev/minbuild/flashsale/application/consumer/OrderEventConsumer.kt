@@ -3,14 +3,18 @@ package dev.minbuild.flashsale.application.consumer
 import com.fasterxml.jackson.databind.ObjectMapper
 import dev.minbuild.flashsale.application.client.OrderApiClient
 import dev.minbuild.flashsale.common.utils.log
+import kotlinx.coroutines.reactor.awaitSingleOrNull
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.kafka.support.Acknowledgment
 import org.springframework.stereotype.Component
+import java.time.Duration
 
 @Component
 class OrderEventConsumer(
     private val objectMapper: ObjectMapper,
-    private val orderApiClient: OrderApiClient
+    private val orderApiClient: OrderApiClient,
+    private val redisTemplate: ReactiveStringRedisTemplate
 ) {
 
     @KafkaListener(
@@ -35,8 +39,25 @@ class OrderEventConsumer(
             return
         }
 
+        val idempotencyKey = "flash_sale:idempotency:order:$orderId"
+
         try {
+            val isProcessed = redisTemplate.hasKey(idempotencyKey).awaitSingleOrNull() == true
+
+            if (isProcessed) {
+                log.warn(
+                    "Duplicate API call detected and skipped. Order is already processed. (OrderId: {})",
+                    orderId
+                )
+                acknowledgment.acknowledge()
+                return
+            }
+
             orderApiClient.requestOrder(orderId, userId)
+
+            redisTemplate.opsForValue()
+                .set(idempotencyKey, "DONE", Duration.ofDays(7))
+                .awaitSingleOrNull()
 
             acknowledgment.acknowledge()
             log.info(
